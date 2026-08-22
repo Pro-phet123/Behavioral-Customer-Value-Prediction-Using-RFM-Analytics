@@ -261,8 +261,8 @@ seaborn
 **Olalemi Olaoluwakintan Emmanuel**
 Data Scientist & AI Engineer
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?logo=linkedin&logoColor=white)](#)
-[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-black?logo=vercel&logoColor=white)](#)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/olaoluwakintan-olalemi-a99182192)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-black?logo=vercel&logoColor=white)](https://github.com/Pro-phet123)
 
 *Built and mentored as part of a hands-on data science mentorship project.*
 
