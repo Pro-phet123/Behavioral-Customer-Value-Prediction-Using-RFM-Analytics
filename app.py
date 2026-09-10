@@ -37,7 +37,7 @@ from pathlib import Path
 
 st.set_page_config(
     page_title="Customer Value Intelligence",
-    page_icon="⬢,,,,",
+    page_icon="⬢",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -1083,13 +1083,13 @@ st.html(
 
         <h1 class="hero-title">
 
-            Know who is becoming
+            Customer  
             <br>
 
-            <span>valuable</span>
+            <span>Value</span>
             <br>
 
-            before they do.
+            Intelligence
 
         </h1>
 
