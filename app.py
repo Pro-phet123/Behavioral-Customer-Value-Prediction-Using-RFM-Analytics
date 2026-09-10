@@ -1,517 +1,881 @@
+# ============================================================
+# ◈ CUSTOMER VALUE INTELLIGENCE
+# Premium Responsive Streamlit RFM ML Dashboard
+#
+# Author:
+# Olalemi Olaoluwakintan Emmanuel
+#
+# Project:
+# Behavioral Customer Value Prediction Using RFM Analytics
+#
+# Model:
+# Logistic Regression + SMOTE
+# Time-aware / Leakage-aware modelling
+#
+# IMPORTANT:
+# This application is a portfolio/research prototype.
+# Predictions are model-based estimates and are not guarantees
+# of future customer spending or behaviour.
+# ============================================================
+
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import plotly.graph_objects as go
-import plotly.express as px
+
 from pathlib import Path
 
 
 # ============================================================
-# CREATE CUSTOM 3D RFM CUBE FAVICON
-# ============================================================
-
-FAVICON_PATH = Path("rfm_cube.svg")
-
-if not FAVICON_PATH.exists():
-    favicon_svg = """
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-        <defs>
-            <linearGradient id="top" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#a5b4fc"/>
-                <stop offset="100%" stop-color="#6366f1"/>
-            </linearGradient>
-
-            <linearGradient id="left" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#6366f1"/>
-                <stop offset="100%" stop-color="#312e81"/>
-            </linearGradient>
-
-            <linearGradient id="right" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#38bdf8"/>
-                <stop offset="100%" stop-color="#2563eb"/>
-            </linearGradient>
-
-            <filter id="shadow">
-                <feDropShadow
-                    dx="0"
-                    dy="7"
-                    stdDeviation="6"
-                    flood-color="#000000"
-                    flood-opacity=".35"
-                />
-            </filter>
-        </defs>
-
-        <rect
-            width="128"
-            height="128"
-            rx="28"
-            fill="#080b14"
-        />
-
-        <g filter="url(#shadow)">
-            <!-- TOP -->
-            <polygon
-                points="64,17 108,39 64,61 20,39"
-                fill="url(#top)"
-            />
-
-            <!-- LEFT -->
-            <polygon
-                points="20,39 64,61 64,111 20,87"
-                fill="url(#left)"
-            />
-
-            <!-- RIGHT -->
-            <polygon
-                points="108,39 64,61 64,111 108,87"
-                fill="url(#right)"
-            />
-
-            <!-- TOP R -->
-            <text
-                x="52"
-                y="39"
-                font-family="Arial, sans-serif"
-                font-size="18"
-                font-weight="700"
-                fill="#ffffff"
-                text-anchor="middle"
-            >R</text>
-
-            <!-- LEFT F -->
-            <text
-                x="40"
-                y="75"
-                font-family="Arial, sans-serif"
-                font-size="18"
-                font-weight="700"
-                fill="#ffffff"
-                text-anchor="middle"
-            >F</text>
-
-            <!-- RIGHT M -->
-            <text
-                x="84"
-                y="75"
-                font-family="Arial, sans-serif"
-                font-size="18"
-                font-weight="700"
-                fill="#ffffff"
-                text-anchor="middle"
-            >M</text>
-
-            <!-- Cube highlights -->
-            <line
-                x1="64"
-                y1="61"
-                x2="64"
-                y2="108"
-                stroke="rgba(255,255,255,.22)"
-                stroke-width="2"
-            />
-
-            <line
-                x1="22"
-                y1="40"
-                x2="63"
-                y2="61"
-                stroke="rgba(255,255,255,.18)"
-                stroke-width="2"
-            />
-
-            <line
-                x1="106"
-                y1="40"
-                x2="65"
-                y2="61"
-                stroke="rgba(255,255,255,.18)"
-                stroke-width="2"
-            />
-        </g>
-    </svg>
-    """
-
-    try:
-        FAVICON_PATH.write_text(favicon_svg, encoding="utf-8")
-    except Exception:
-        pass
-
-
-# ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
     page_title="Customer Value Intelligence",
-    page_icon=str(FAVICON_PATH),
+    page_icon="◈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
 
 # ============================================================
-# PREMIUM DARK THEME
+# PROJECT PATHS
 # ============================================================
 
-st.markdown(
-    """
+BASE_DIR = Path(__file__).resolve().parent
+
+MODEL_PATH = BASE_DIR / "customer_value_pipeline.pkl"
+
+
+# ============================================================
+# EXPECTED MODEL FEATURES
+# ============================================================
+
+EXPECTED_FEATURES = [
+    "Recency",
+    "Frequency",
+    "Average_Order_Value",
+    "Average_Quantity",
+    "Total_Items",
+    "Unique_Products",
+    "Number_of_Transactions"
+]
+
+
+# ============================================================
+# PROJECT INFORMATION
+# ============================================================
+
+RAW_TRANSACTIONS = 541_909
+CUSTOMER_RECORDS = 3_616
+BEHAVIOURAL_FEATURES = 7
+FUTURE_SPEND_MEDIAN = 439.61
+
+
+# ============================================================
+# MODEL PERFORMANCE
+# ============================================================
+
+BASELINE_METRICS = {
+
+    "Accuracy": 0.7873,
+    "Precision": 0.7297,
+    "Recall": 0.3951,
+    "F1 Score": 0.5127
+}
+
+
+SMOTE_METRICS = {
+
+    "Accuracy": 0.7652,
+    "Precision": 0.5792,
+    "Recall": 0.6244,
+    "F1 Score": 0.6009
+}
+
+
+# ============================================================
+# BEST MODEL
+# ============================================================
+
+BEST_MODEL = {
+
+    "Model": "Logistic Regression + SMOTE",
+    "Validation": "Time-aware",
+    "Scaling": "StandardScaler",
+    "Balancing": "SMOTE",
+    "Selection Metric": "F1 Score"
+}
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "theme" not in st.session_state:
+
+    st.session_state.theme = "Dark"
+
+
+if "prediction_result" not in st.session_state:
+
+    st.session_state.prediction_result = None
+
+
+# ============================================================
+# THEME DEFINITIONS
+# ============================================================
+
+THEMES = {
+
+    "Dark": {
+
+        "background": "#050505",
+        "surface": "#0b0b0d",
+        "surface2": "#111114",
+        "card": "#111114",
+
+        "border": "rgba(255,255,255,0.09)",
+
+        "text": "#f8fafc",
+        "muted": "#94a3b8",
+
+        "primary": "#818cf8",
+        "secondary": "#38bdf8",
+
+        "success": "#34d399",
+        "warning": "#fbbf24",
+        "danger": "#fb7185"
+    },
+
+
+    "Midnight Blue": {
+
+        "background": "#020617",
+        "surface": "#0f172a",
+        "surface2": "#172033",
+        "card": "#0f172a",
+
+        "border": "rgba(148,163,184,0.12)",
+
+        "text": "#f8fafc",
+        "muted": "#94a3b8",
+
+        "primary": "#38bdf8",
+        "secondary": "#818cf8",
+
+        "success": "#34d399",
+        "warning": "#fbbf24",
+        "danger": "#fb7185"
+    },
+
+
+    "Emerald": {
+
+        "background": "#020807",
+        "surface": "#071311",
+        "surface2": "#0c1d19",
+        "card": "#071311",
+
+        "border": "rgba(52,211,153,0.12)",
+
+        "text": "#ecfdf5",
+        "muted": "#94a3b8",
+
+        "primary": "#34d399",
+        "secondary": "#2dd4bf",
+
+        "success": "#4ade80",
+        "warning": "#fbbf24",
+        "danger": "#fb7185"
+    },
+
+
+    "Light": {
+
+        "background": "#f5f7fb",
+        "surface": "#ffffff",
+        "surface2": "#f8fafc",
+        "card": "#ffffff",
+
+        "border": "rgba(15,23,42,0.08)",
+
+        "text": "#0f172a",
+        "muted": "#64748b",
+
+        "primary": "#4f46e5",
+        "secondary": "#0284c7",
+
+        "success": "#16a34a",
+        "warning": "#d97706",
+        "danger": "#dc2626"
+    }
+}
+
+
+theme = THEMES[st.session_state.theme]
+
+
+# ============================================================
+# GLOBAL CSS
+# ============================================================
+
+st.html(
+    f"""
     <style>
 
     /* ======================================================
        GLOBAL
        ====================================================== */
 
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+    * {{
+        box-sizing: border-box;
+    }}
 
     html,
-    body,
-    [class*="css"] {
-        font-family: 'DM Sans', sans-serif;
-    }
+    body {{
+        font-family:
+            Inter,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+    }}
 
-    .stApp {
+    .stApp {{
+
         background:
+
             radial-gradient(
-                circle at 85% 5%,
-                rgba(99, 102, 241, 0.16),
+                circle at 10% 0%,
+                rgba(99,102,241,0.10),
                 transparent 28%
             ),
+
             radial-gradient(
-                circle at 5% 25%,
-                rgba(14, 165, 233, 0.10),
+                circle at 90% 10%,
+                rgba(14,165,233,0.08),
                 transparent 25%
             ),
-            #080b14;
 
-        color: #f8fafc;
-    }
+            {theme["background"]};
 
-    .block-container {
+        color: {theme["text"]};
+    }}
+
+
+    /* ======================================================
+       MAIN CONTAINER
+       ====================================================== */
+
+    .block-container {{
+
         max-width: 1450px;
-        padding-top: 2rem;
-        padding-bottom: 4rem;
-    }
 
-    h1,
-    h2,
-    h3,
-    h4 {
-        font-family: 'Space Grotesk', sans-serif;
-        letter-spacing: -0.03em;
-    }
+        padding-top: 2rem;
+        padding-bottom: 5rem;
+
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }}
+
 
     /* ======================================================
        SIDEBAR
        ====================================================== */
 
-    div[data-testid="stSidebar"] {
-        background: rgba(5, 8, 16, 0.97);
-        border-right: 1px solid rgba(255, 255, 255, 0.07);
-    }
+    section[data-testid="stSidebar"] {{
 
-    div[data-testid="stSidebar"] .block-container {
-        padding-top: 2rem;
-    }
+        background: {theme["surface"]};
+
+        border-right:
+            1px solid {theme["border"]};
+    }}
+
+    section[data-testid="stSidebar"] * {{
+        color: {theme["text"]};
+    }}
+
+
+    /* ======================================================
+       HEADINGS
+       ====================================================== */
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {{
+        color: {theme["text"]};
+    }}
+
 
     /* ======================================================
        HERO
        ====================================================== */
 
-    .hero {
-        padding: 32px 34px;
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 26px;
+    .hero {{
+
+        position: relative;
+
+        overflow: hidden;
+
+        padding: 3rem;
+
+        border-radius: 30px;
+
+        margin-bottom: 1.5rem;
 
         background:
+
+            radial-gradient(
+                circle at 85% 15%,
+                rgba(129,140,248,0.22),
+                transparent 30%
+            ),
+
             linear-gradient(
                 135deg,
-                rgba(255, 255, 255, 0.075),
-                rgba(255, 255, 255, 0.025)
+                {theme["surface"]},
+                {theme["surface2"]}
             );
 
+        border:
+            1px solid {theme["border"]};
+
         box-shadow:
-            0 20px 60px rgba(0, 0, 0, 0.28);
+            0 25px 80px rgba(0,0,0,0.25);
+    }}
 
-        margin-bottom: 24px;
-    }
 
-    .eyebrow {
-        color: #a5b4fc;
-        font-size: 0.76rem;
+    .hero-badge {{
+
+        display: inline-block;
+
+        padding: 7px 13px;
+
+        border-radius: 999px;
+
+        background:
+            rgba(129,140,248,0.10);
+
+        border:
+            1px solid rgba(129,140,248,0.22);
+
+        color:
+            {theme["primary"]};
+
+        font-size: 0.75rem;
+
         font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-    }
 
-    .hero-title {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: clamp(2.2rem, 5vw, 4.3rem);
+        letter-spacing: 0.08em;
+
+        margin-bottom: 1rem;
+    }}
+
+
+    .hero-title {{
+
+        margin: 0;
+
+        font-size:
+            clamp(2.4rem, 6vw, 5rem);
+
         line-height: 0.98;
+
         letter-spacing: -0.055em;
-        margin: 10px 0 16px;
-        color: #f8fafc;
-    }
 
-    .hero-title i {
-        color: #a5b4fc;
-    }
+        font-weight: 850;
 
-    .hero-copy {
-        color: #aab4c8;
-        font-size: 1.02rem;
-        max-width: 850px;
+        color:
+            {theme["text"]};
+    }}
+
+
+    .hero-title span {{
+        color: {theme["primary"]};
+    }}
+
+
+    .hero-subtitle {{
+
+        max-width: 800px;
+
+        margin-top: 1.3rem;
+
+        color:
+            {theme["muted"]};
+
+        font-size: 1.05rem;
+
         line-height: 1.7;
-    }
+    }}
+
+
+    /* ======================================================
+       STATUS
+       ====================================================== */
+
+    .status {{
+
+        display: inline-block;
+
+        padding: 7px 12px;
+
+        border-radius: 999px;
+
+        font-size: 0.78rem;
+
+        font-weight: 700;
+    }}
+
+
+    .status-green {{
+
+        color:
+            {theme["success"]};
+
+        background:
+            rgba(52,211,153,0.09);
+
+        border:
+            1px solid rgba(52,211,153,0.18);
+    }}
+
+
+    .status-blue {{
+
+        color:
+            {theme["primary"]};
+
+        background:
+            rgba(129,140,248,0.09);
+
+        border:
+            1px solid rgba(129,140,248,0.18);
+    }}
+
+
+    /* ======================================================
+       SAFETY / MODEL NOTICE
+       ====================================================== */
+
+    .notice {{
+
+        padding:
+            1.2rem 1.4rem;
+
+        border-radius: 18px;
+
+        margin-bottom: 1.6rem;
+
+        background:
+            rgba(129,140,248,0.06);
+
+        border:
+            1px solid rgba(129,140,248,0.18);
+
+        color:
+            {theme["text"]};
+
+        line-height: 1.65;
+    }}
+
+
+    .notice-title {{
+
+        font-weight: 800;
+
+        color:
+            {theme["primary"]};
+
+        margin-bottom: 0.35rem;
+    }}
+
+
+    /* ======================================================
+       SECTION
+       ====================================================== */
+
+    .section-title {{
+
+        font-size: 1.8rem;
+
+        font-weight: 800;
+
+        letter-spacing: -0.035em;
+
+        margin:
+            1.5rem 0 0.4rem 0;
+    }}
+
+
+    .section-description {{
+
+        color:
+            {theme["muted"]};
+
+        margin-bottom: 1.2rem;
+
+        line-height: 1.6;
+    }}
+
 
     /* ======================================================
        METRIC CARDS
        ====================================================== */
 
-    .metric-card {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 18px;
-        padding: 20px;
-        background: rgba(255, 255, 255, 0.045);
-        min-height: 120px;
-        transition: all 0.25s ease;
-    }
+    .metric-card {{
 
-    .metric-card:hover {
-        transform: translateY(-3px);
-        border-color: rgba(165, 180, 252, 0.25);
-        background: rgba(255, 255, 255, 0.065);
-    }
+        padding: 1.25rem;
 
-    .metric-label {
-        color: #8995aa;
+        min-height: 135px;
+
+        border-radius: 20px;
+
+        background:
+            {theme["card"]};
+
+        border:
+            1px solid {theme["border"]};
+
+        box-shadow:
+            0 10px 35px rgba(0,0,0,0.12);
+
+        transition:
+            transform 0.2s ease,
+            border-color 0.2s ease;
+    }}
+
+
+    .metric-card:hover {{
+
+        transform:
+            translateY(-3px);
+
+        border-color:
+            rgba(129,140,248,0.30);
+    }}
+
+
+    .metric-label {{
+
+        color:
+            {theme["muted"]};
+
         font-size: 0.72rem;
+
+        font-weight: 700;
+
+        letter-spacing: 0.07em;
+
         text-transform: uppercase;
-        letter-spacing: 0.1em;
-        font-weight: 700;
-    }
+    }}
 
-    .metric-value {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 1.85rem;
-        font-weight: 700;
-        margin-top: 8px;
-        color: #f8fafc;
-    }
 
-    .metric-sub {
-        color: #7f8ba1;
-        font-size: 0.78rem;
-        margin-top: 5px;
-    }
+    .metric-value {{
+
+        color:
+            {theme["text"]};
+
+        font-size: 2rem;
+
+        font-weight: 850;
+
+        margin-top: 0.3rem;
+
+        letter-spacing: -0.04em;
+    }}
+
+
+    .metric-delta {{
+
+        color:
+            {theme["success"]};
+
+        font-size: 0.75rem;
+
+        margin-top: 0.3rem;
+    }}
+
 
     /* ======================================================
-       SECTION TEXT
+       GENERAL CARDS
        ====================================================== */
 
-    .section-note {
-        color: #8e9ab0;
-        line-height: 1.65;
-    }
+    .card {{
+
+        padding: 1.5rem;
+
+        border-radius: 22px;
+
+        background:
+            {theme["card"]};
+
+        border:
+            1px solid {theme["border"]};
+
+        margin-bottom: 1rem;
+
+        box-shadow:
+            0 10px 40px rgba(0,0,0,0.10);
+    }}
+
+
+    .card h3 {{
+
+        margin-top: 0;
+
+        color:
+            {theme["text"]};
+    }}
+
+
+    .card p {{
+
+        color:
+            {theme["muted"]};
+
+        line-height: 1.7;
+    }}
+
 
     /* ======================================================
-       PILLS
+       FEATURE ROW
        ====================================================== */
 
-    .pill {
-        display: inline-block;
-        padding: 6px 11px;
-        margin: 3px 4px 3px 0;
+    .feature-row {{
 
-        border-radius: 999px;
+        display: flex;
 
-        background: rgba(165, 180, 252, 0.11);
-        color: #c7d2fe;
+        justify-content:
+            space-between;
 
-        border: 1px solid rgba(165, 180, 252, 0.18);
+        align-items:
+            center;
 
-        font-size: 0.74rem;
-        font-weight: 700;
-    }
+        padding:
+            0.75rem 0;
+
+        border-bottom:
+            1px solid {theme["border"]};
+    }}
+
+
+    .feature-row:last-child {{
+        border-bottom: none;
+    }}
+
+
+    .feature-name {{
+
+        color:
+            {theme["text"]};
+
+        font-weight: 600;
+    }}
+
+
+    .feature-value {{
+
+        color:
+            {theme["primary"]};
+
+        font-weight: 800;
+
+        font-family:
+            monospace;
+    }}
+
 
     /* ======================================================
        RESULT CARDS
        ====================================================== */
 
-    .result-high,
-    .result-low {
-        border-radius: 22px;
-        padding: 28px;
+    .result-high {{
 
-        margin: 10px 0 20px;
+        padding: 1.6rem;
 
-        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 24px;
 
-        box-shadow:
-            0 16px 45px rgba(0, 0, 0, 0.18);
-    }
-
-    .result-high {
         background:
-            linear-gradient(
-                135deg,
-                rgba(34, 197, 94, 0.14),
-                rgba(34, 197, 94, 0.035)
-            );
-    }
+            rgba(52,211,153,0.08);
 
-    .result-low {
+        border:
+            1px solid rgba(52,211,153,0.28);
+
+        margin-top: 1rem;
+    }}
+
+
+    .result-low {{
+
+        padding: 1.6rem;
+
+        border-radius: 24px;
+
         background:
-            linear-gradient(
-                135deg,
-                rgba(148, 163, 184, 0.12),
-                rgba(148, 163, 184, 0.025)
-            );
-    }
+            rgba(148,163,184,0.08);
 
-    .result-title {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 2rem;
-        font-weight: 700;
-        margin-top: 6px;
-    }
+        border:
+            1px solid rgba(148,163,184,0.22);
 
-    .prob {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 3.4rem;
-        font-weight: 700;
-        line-height: 1;
-        margin-top: 20px;
-    }
+        margin-top: 1rem;
+    }}
 
-    /* ======================================================
-       FORM
-       ====================================================== */
 
-    div[data-testid="stForm"] {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        padding: 24px;
+    .result-title {{
 
-        background: rgba(255, 255, 255, 0.035);
-    }
+        font-size: 1.35rem;
 
-    /* ======================================================
-       INPUTS
-       ====================================================== */
+        font-weight: 800;
 
-    div[data-baseweb="input"] {
-        background: rgba(255, 255, 255, 0.035);
-        border-radius: 10px;
-    }
+        margin-bottom: 0.5rem;
+    }}
 
-    div[data-baseweb="select"] {
-        border-radius: 10px;
-    }
+
+    .result-probability {{
+
+        font-size:
+            clamp(2.4rem, 5vw, 4rem);
+
+        font-weight: 850;
+
+        letter-spacing: -0.05em;
+
+        color:
+            {theme["primary"]};
+
+        margin-top: 0.7rem;
+    }}
+
+
+    .result-text {{
+
+        color:
+            {theme["muted"]};
+
+        line-height: 1.65;
+    }}
+
 
     /* ======================================================
-       BUTTONS
+       RFM BADGES
        ====================================================== */
 
-    div[data-testid="stButton"] > button,
-    div[data-testid="stFormSubmitButton"] > button {
-        border-radius: 13px;
-        min-height: 48px;
-        font-weight: 700;
+    .rfm-badge {{
 
-        border: 1px solid rgba(165, 180, 252, 0.25);
+        display: inline-block;
 
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease;
-    }
+        padding: 6px 10px;
 
-    div[data-testid="stButton"] > button:hover,
-    div[data-testid="stFormSubmitButton"] > button:hover {
-        transform: translateY(-2px);
+        margin-right: 5px;
 
-        box-shadow:
-            0 8px 25px rgba(99, 102, 241, 0.18);
-    }
+        border-radius: 999px;
+
+        color:
+            {theme["primary"]};
+
+        background:
+            rgba(129,140,248,0.09);
+
+        border:
+            1px solid rgba(129,140,248,0.20);
+
+        font-size: 0.72rem;
+
+        font-weight: 800;
+    }}
+
 
     /* ======================================================
-       DATAFRAME
+       FOOTER
        ====================================================== */
 
-    [data-testid="stDataFrame"] {
-        border-radius: 14px;
-        overflow: hidden;
-    }
+    .footer {{
 
-    /* ======================================================
-       PLOTLY
-       ====================================================== */
+        text-align: center;
 
-    .plot-container {
-        border-radius: 18px;
-    }
+        margin-top: 4rem;
 
-    /* ======================================================
-       ALERTS
-       ====================================================== */
+        padding: 2rem;
 
-    div[data-testid="stAlert"] {
-        border-radius: 14px;
-    }
+        color:
+            {theme["muted"]};
+
+        border-top:
+            1px solid {theme["border"]};
+    }}
+
 
     /* ======================================================
        MOBILE RESPONSIVENESS
        ====================================================== */
 
-    @media (max-width: 768px) {
+    @media (max-width: 768px) {{
 
-        .block-container {
+        .block-container {{
+
             padding-left: 1rem;
+
             padding-right: 1rem;
+
             padding-top: 1rem;
-        }
+        }}
 
-        .hero {
-            padding: 24px 20px;
-            border-radius: 20px;
-        }
 
-        .hero-title {
-            font-size: 2.45rem;
-        }
+        .hero {{
 
-        .hero-copy {
-            font-size: 0.94rem;
-        }
+            padding: 1.7rem;
 
-        .metric-card {
-            min-height: 105px;
-            padding: 16px;
-        }
+            border-radius: 22px;
+        }}
 
-        .metric-value {
-            font-size: 1.5rem;
-        }
 
-        .result-high,
-        .result-low {
-            padding: 22px;
-        }
+        .hero-title {{
 
-        .result-title {
-            font-size: 1.55rem;
-        }
+            font-size:
+                2.7rem;
+        }}
 
-        .prob {
-            font-size: 2.7rem;
-        }
 
-    }
+        .hero-subtitle {{
+
+            font-size:
+                0.95rem;
+        }}
+
+
+        .metric-card {{
+
+            min-height:
+                110px;
+        }}
+
+
+        .metric-value {{
+
+            font-size:
+                1.55rem;
+        }}
+
+
+        .result-probability {{
+
+            font-size:
+                2.7rem;
+        }}
+
+    }}
 
     </style>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
@@ -519,40 +883,30 @@ st.markdown(
 # MODEL LOADING
 # ============================================================
 
-PIPELINE_PATH = Path("customer_value_pipeline.pkl")
-
-FEATURES = [
-    "Recency",
-    "Frequency",
-    "Average_Order_Value",
-    "Average_Quantity",
-    "Total_Items",
-    "Unique_Products",
-    "Number_of_Transactions",
-]
-
-
 @st.cache_resource
 def load_model():
-    """
-    Load the saved deployment pipeline.
 
-    Expected pipeline:
+    if not MODEL_PATH.exists():
 
-    Raw Features
-        ↓
-    StandardScaler
-        ↓
-    Logistic Regression
-    """
+        return None, (
+            f"Model file not found: "
+            f"{MODEL_PATH.name}"
+        )
 
-    if PIPELINE_PATH.exists():
-        return joblib.load(PIPELINE_PATH)
+    try:
 
-    return None
+        loaded_model = joblib.load(
+            MODEL_PATH
+        )
+
+        return loaded_model, None
+
+    except Exception as error:
+
+        return None, str(error)
 
 
-model = load_model()
+model, model_error = load_model()
 
 
 # ============================================================
@@ -562,536 +916,248 @@ model = load_model()
 with st.sidebar:
 
     st.markdown(
-        """
-        <div style="
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.65rem;
-            font-weight: 700;
-            letter-spacing: -0.04em;
-        ">
-            ◈ CVI
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "## ◈ CVI"
     )
 
-    st.caption("Customer Value Intelligence")
+    st.caption(
+        "Customer Value Intelligence"
+    )
 
     st.divider()
+
+
+    # --------------------------------------------------------
+    # NAVIGATION
+    # --------------------------------------------------------
 
     page = st.radio(
-        "Workspace",
+
+        "Navigation",
+
         [
-            "Prediction",
-            "Customer Profile",
-            "Model Context",
+            "🏠 Overview",
+            "🔮 Prediction",
+            "👤 Customer Profile",
+            "🧠 Model Context",
+            "⚖️ Evaluation",
+            "📘 Methodology"
         ],
-        label_visibility="collapsed",
+
+        label_visibility="collapsed"
     )
+
 
     st.divider()
 
-    st.markdown("### Model")
+
+    # --------------------------------------------------------
+    # MODEL STATUS
+    # --------------------------------------------------------
 
     st.markdown(
-        """
-        <span class="pill">Logistic Regression</span>
-        <span class="pill">SMOTE</span>
-        <span class="pill">Time-aware</span>
-        """,
-        unsafe_allow_html=True,
+        "### Model"
     )
+
+
+    if model is not None:
+
+        st.markdown(
+            """
+            <span class="rfm-badge">
+                Logistic Regression
+            </span>
+
+            <span class="rfm-badge">
+                SMOTE
+            </span>
+
+            <span class="rfm-badge">
+                Time-aware
+            </span>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.success(
+            "Model loaded"
+        )
+
+    else:
+
+        st.error(
+            "Model unavailable"
+        )
+
 
     st.divider()
 
-    st.caption("Behavioral Customer Value Prediction")
-    st.caption("RFM + behavioural analytics")
+
+    # --------------------------------------------------------
+    # THEME
+    # --------------------------------------------------------
+
+    st.markdown(
+        "### ⚙️ Appearance"
+    )
+
+
+    selected_theme = st.selectbox(
+
+        "Theme",
+
+        list(THEMES.keys()),
+
+        index=list(
+            THEMES.keys()
+        ).index(
+            st.session_state.theme
+        ),
+
+        label_visibility="collapsed"
+    )
+
+
+    if selected_theme != st.session_state.theme:
+
+        st.session_state.theme = (
+            selected_theme
+        )
+
+        st.rerun()
+
+
+    st.divider()
+
+
+    st.caption(
+        "Behavioral Customer Value Prediction"
+    )
+
+    st.caption(
+        "RFM + behavioural analytics"
+    )
+
+
+# ============================================================
+# SYSTEM BAR
+# ============================================================
+
+st.html(
+    f"""
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:1rem;
+        gap:1rem;
+        flex-wrap:wrap;
+    ">
+
+        <span class="status status-green">
+            ● SYSTEM ONLINE
+        </span>
+
+        <span style="
+            color:{theme["muted"]};
+            font-size:0.8rem;
+        ">
+            Customer Intelligence • Predictive Analytics
+        </span>
+
+    </div>
+    """
+)
 
 
 # ============================================================
 # HERO
 # ============================================================
 
-st.markdown(
-    """
+st.html(
+    f"""
     <div class="hero">
 
-        <div class="eyebrow">
-            Customer Intelligence • Predictive Analytics
+        <div class="hero-badge">
+            ◈ CUSTOMER INTELLIGENCE • PREDICTIVE ANALYTICS
         </div>
 
-        <div class="hero-title">
-            Know who is becoming<br>
-            valuable <i>before</i> they do.
-        </div>
+        <h1 class="hero-title">
 
-        <div class="hero-copy">
-            Turn historical purchasing behaviour into an actionable
-            customer-value signal. Enter a customer's behavioural profile
-            and estimate the likelihood that they belong to the high-value
-            segment.
-        </div>
+            Know who is becoming
+            <br>
+
+            <span>valuable</span>
+            <br>
+
+            before they do.
+
+        </h1>
+
+        <p class="hero-subtitle">
+
+            Turn historical purchasing behaviour into an
+            actionable customer-value signal. Explore RFM
+            and behavioural features and estimate the likelihood
+            that a customer belongs to the high-value segment.
+
+        </p>
+
+        <br>
+
+        <span class="status status-green">
+            ● Leakage-aware modelling
+        </span>
 
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-# PREDICTION PAGE
+# PROJECT NOTICE
 # ============================================================
 
-if page == "Prediction":
+st.html(
+    f"""
+    <div class="notice">
 
-    if model is None:
+        <div class="notice-title">
+            ◈ About this prediction system
+        </div>
 
-        st.error(
-            "Model pipeline not found. Add "
-            "`customer_value_pipeline.pkl` "
-            "to the application folder."
-        )
+        This application is a portfolio and research prototype
+        demonstrating customer-value prediction using historical
+        purchasing behaviour. Model probabilities are estimates
+        generated by the trained machine-learning pipeline and
+        should not be interpreted as guarantees of future revenue
+        or customer behaviour.
 
-        st.stop()
+    </div>
+    """
+)
 
-    st.markdown("### Customer prediction")
 
-    st.markdown(
+# ============================================================
+# PAGE 1 — OVERVIEW
+# ============================================================
+
+if page == "🏠 Overview":
+
+
+    st.html(
         """
-        <p class="section-note">
-            The prediction uses the same seven behavioural features
-            used in the modelling notebook.
-        </p>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # ========================================================
-    # PREDICTION FORM
-    # ========================================================
-
-    with st.form("prediction_form"):
-
-        c1, c2, c3 = st.columns(3)
-
-        # ----------------------------------------------------
-        # COLUMN 1
-        # ----------------------------------------------------
-
-        with c1:
-
-            recency = st.number_input(
-                "Recency (days)",
-                min_value=0.0,
-                value=30.0,
-                step=1.0,
-                help="Number of days since the customer's last purchase.",
-            )
-
-            frequency = st.number_input(
-                "Frequency (orders)",
-                min_value=1.0,
-                value=3.0,
-                step=1.0,
-                help="Number of customer orders.",
-            )
-
-            aov = st.number_input(
-                "Average Order Value",
-                min_value=0.0,
-                value=150.0,
-                step=10.0,
-                help="Average monetary value of each order.",
-            )
-
-        # ----------------------------------------------------
-        # COLUMN 2
-        # ----------------------------------------------------
-
-        with c2:
-
-            avg_qty = st.number_input(
-                "Average Quantity",
-                min_value=0.0,
-                value=10.0,
-                step=1.0,
-                help="Average number of items purchased per transaction.",
-            )
-
-            total_items = st.number_input(
-                "Total Items",
-                min_value=0.0,
-                value=30.0,
-                step=1.0,
-                help="Total number of items purchased.",
-            )
-
-            unique_products = st.number_input(
-                "Unique Products",
-                min_value=0.0,
-                value=15.0,
-                step=1.0,
-                help="Number of distinct products purchased.",
-            )
-
-        # ----------------------------------------------------
-        # COLUMN 3
-        # ----------------------------------------------------
-
-        with c3:
-
-            transactions = st.number_input(
-                "Number of Transactions",
-                min_value=1.0,
-                value=5.0,
-                step=1.0,
-                help="Total number of transactions.",
-            )
-
-            st.markdown("#### What this means")
-
-            st.caption(
-                "Lower recency generally indicates more recent activity, "
-                "while higher frequency, product diversity and transaction "
-                "volume indicate stronger historical engagement."
-            )
-
-        submitted = st.form_submit_button(
-            "RUN CUSTOMER VALUE PREDICTION  →",
-            use_container_width=True,
-            type="primary",
-        )
-
-
-    # ========================================================
-    # RUN PREDICTION
-    # ========================================================
-
-    if submitted:
-
-        input_df = pd.DataFrame(
-            [
-                {
-                    "Recency": recency,
-                    "Frequency": frequency,
-                    "Average_Order_Value": aov,
-                    "Average_Quantity": avg_qty,
-                    "Total_Items": total_items,
-                    "Unique_Products": unique_products,
-                    "Number_of_Transactions": transactions,
-                }
-            ]
-        )[FEATURES]
-
-        try:
-
-            # ------------------------------------------------
-            # MODEL PREDICTION
-            # ------------------------------------------------
-
-            if hasattr(model, "predict_proba"):
-
-                probability = float(
-                    model.predict_proba(input_df)[0, 1]
-                )
-
-            else:
-
-                prediction_raw = int(
-                    model.predict(input_df)[0]
-                )
-
-                probability = float(prediction_raw)
-
-
-            prediction = int(
-                model.predict(input_df)[0]
-            )
-
-            st.divider()
-
-            # =================================================
-            # HIGH VALUE
-            # =================================================
-
-            if prediction == 1:
-
-                st.markdown(
-                    f"""
-                    <div class="result-high">
-
-                        <div class="eyebrow">
-                            Prediction • High Value
-                        </div>
-
-                        <div class="result-title">
-                            High-value customer signal detected.
-                        </div>
-
-                        <p class="section-note">
-                            This customer shows behavioural characteristics
-                            associated with the high-value segment in the
-                            trained model.
-                        </p>
-
-                        <div class="prob">
-                            {probability:.1%}
-                        </div>
-
-                        <div class="metric-sub">
-                            Estimated probability of high-value class
-                        </div>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # =================================================
-            # LOWER VALUE
-            # =================================================
-
-            else:
-
-                st.markdown(
-                    f"""
-                    <div class="result-low">
-
-                        <div class="eyebrow">
-                            Prediction • Lower Value
-                        </div>
-
-                        <div class="result-title">
-                            Lower high-value probability.
-                        </div>
-
-                        <p class="section-note">
-                            The customer's current behavioural profile is
-                            less aligned with the high-value segment.
-                        </p>
-
-                        <div class="prob">
-                            {probability:.1%}
-                        </div>
-
-                        <div class="metric-sub">
-                            Estimated probability of high-value class
-                        </div>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-
-            # =================================================
-            # PROBABILITY GAUGE
-            # =================================================
-
-            fig = go.Figure(
-                go.Indicator(
-                    mode="gauge+number",
-                    value=probability * 100,
-
-                    number={
-                        "suffix": "%",
-                        "font": {
-                            "size": 42
-                        },
-                    },
-
-                    title={
-                        "text": "High-value probability",
-                        "font": {
-                            "size": 18
-                        },
-                    },
-
-                    gauge={
-                        "axis": {
-                            "range": [0, 100]
-                        },
-
-                        "bar": {
-                            "thickness": 0.25
-                        },
-
-                        "steps": [
-                            {
-                                "range": [0, 50]
-                            },
-                            {
-                                "range": [50, 100]
-                            },
-                        ],
-
-                        "threshold": {
-                            "line": {
-                                "width": 4
-                            },
-
-                            "thickness": 0.8,
-
-                            "value": 50,
-                        },
-                    },
-                )
-            )
-
-            fig.update_layout(
-                height=300,
-
-                margin=dict(
-                    l=25,
-                    r=25,
-                    t=55,
-                    b=20,
-                ),
-
-                paper_bgcolor="rgba(0,0,0,0)",
-
-                font=dict(
-                    color="#e2e8f0",
-                ),
-            )
-
-
-            # =================================================
-            # GAUGE + PROFILE
-            # =================================================
-
-            left, right = st.columns(
-                [1.15, 1]
-            )
-
-            # -------------------------------------------------
-            # GAUGE
-            # -------------------------------------------------
-
-            with left:
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True,
-                )
-
-            # -------------------------------------------------
-            # BEHAVIOURAL SNAPSHOT
-            # -------------------------------------------------
-
-            with right:
-
-                st.markdown(
-                    "### Behavioural snapshot"
-                )
-
-                profile = pd.DataFrame(
-                    {
-                        "Feature": FEATURES,
-                        "Customer": input_df.iloc[0].values,
-                    }
-                )
-
-                st.dataframe(
-                    profile,
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-                st.caption(
-                    "Prediction is a model-based probability, "
-                    "not a guarantee of future spending."
-                )
-
-
-        except Exception as e:
-
-            st.error(
-                f"Prediction failed: {e}"
-            )
-
-
-# ============================================================
-# CUSTOMER PROFILE PAGE
-# ============================================================
-
-elif page == "Customer Profile":
-
-    st.markdown(
-        "### Customer profile simulator"
-    )
-
-    st.markdown(
+        <div class="section-title">
+            Customer Value Intelligence
+        </div>
+
+        <div class="section-description">
+            A predictive analytics application designed to
+            transform historical transaction behaviour into
+            customer-level value signals.
+        </div>
         """
-        <p class="section-note">
-            Use this space to reason about how behavioural changes
-            may affect customer value.
-        </p>
-        """,
-        unsafe_allow_html=True,
     )
 
-    base = {
-        "Recency": 30,
-        "Frequency": 3,
-        "Average_Order_Value": 150,
-        "Average_Quantity": 10,
-        "Total_Items": 30,
-        "Unique_Products": 15,
-        "Number_of_Transactions": 5,
-    }
-
-    cols = st.columns(2)
-
-    values = {}
-
-    for i, feature in enumerate(FEATURES):
-
-        with cols[i % 2]:
-
-            maximum = float(
-                max(
-                    base[feature] * 5,
-                    100,
-                )
-            )
-
-            values[feature] = st.slider(
-                feature.replace("_", " "),
-                min_value=0.0,
-                max_value=maximum,
-                value=float(base[feature]),
-            )
-
-    profile = pd.DataFrame(
-        [values]
-    )
-
-    st.markdown(
-        "### Current profile"
-    )
-
-    st.dataframe(
-        profile,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    st.info(
-        "This simulator is intended for behavioural exploration. "
-        "The production prediction page uses the saved model pipeline."
-    )
-
-
-# ============================================================
-# MODEL CONTEXT PAGE
-# ============================================================
-
-elif page == "Model Context":
-
-    st.markdown(
-        "### What is behind the prediction?"
-    )
 
     # ========================================================
     # TOP METRICS
@@ -1099,21 +1165,44 @@ elif page == "Model Context":
 
     m1, m2, m3, m4 = st.columns(4)
 
-    metrics = [
-        ("541,909", "Raw transactions"),
-        ("3,616", "Customer-level records"),
-        ("7", "Behavioural features"),
-        ("£439.61", "Future-spend median"),
+
+    overview_metrics = [
+
+        (
+            m1,
+            "RAW TRANSACTIONS",
+            f"{RAW_TRANSACTIONS:,}",
+            "Original retail transactions"
+        ),
+
+        (
+            m2,
+            "CUSTOMER RECORDS",
+            f"{CUSTOMER_RECORDS:,}",
+            "Customer-level modelling data"
+        ),
+
+        (
+            m3,
+            "BEHAVIOURAL FEATURES",
+            str(BEHAVIOURAL_FEATURES),
+            "Features used for prediction"
+        ),
+
+        (
+            m4,
+            "FUTURE-SPEND MEDIAN",
+            f"£{FUTURE_SPEND_MEDIAN:,.2f}",
+            "High-value target threshold"
+        )
     ]
 
-    for col, (value, label) in zip(
-        [m1, m2, m3, m4],
-        metrics,
-    ):
+
+    for col, label, value, delta in overview_metrics:
 
         with col:
 
-            st.markdown(
+            st.html(
                 f"""
                 <div class="metric-card">
 
@@ -1125,159 +1214,1805 @@ elif page == "Model Context":
                         {value}
                     </div>
 
+                    <div class="metric-delta">
+                        {delta}
+                    </div>
+
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
+
+
+    # ========================================================
+    # WHAT IS RFM?
+    # ========================================================
+
+    st.html(
+        """
+        <div class="section-title">
+            What is behind the prediction?
+        </div>
+
+        <div class="section-description">
+            The model uses historical customer behaviour to
+            identify patterns associated with future high-value
+            spending.
+        </div>
+        """
+    )
+
+
+    r1, r2, r3 = st.columns(3)
+
+
+    with r1:
+
+        st.html(
+            f"""
+            <div class="card">
+
+                <h3>R — Recency</h3>
+
+                <p>
+                    How recently did the customer purchase?
+                    Lower recency generally represents more
+                    recent purchasing activity.
+                </p>
+
+                <span class="rfm-badge">
+                    Behavioural signal
+                </span>
+
+            </div>
+            """
+        )
+
+
+    with r2:
+
+        st.html(
+            f"""
+            <div class="card">
+
+                <h3>F — Frequency</h3>
+
+                <p>
+                    How often does the customer purchase?
+                    Higher frequency can indicate stronger
+                    engagement with the business.
+                </p>
+
+                <span class="rfm-badge">
+                    Engagement signal
+                </span>
+
+            </div>
+            """
+        )
+
+
+    with r3:
+
+        st.html(
+            f"""
+            <div class="card">
+
+                <h3>M — Monetary Behaviour</h3>
+
+                <p>
+                    How much value does the customer generate
+                    through purchasing behaviour and order
+                    characteristics?
+                </p>
+
+                <span class="rfm-badge">
+                    Value signal
+                </span>
+
+            </div>
+            """
+        )
 
 
     # ========================================================
     # MODELLING LOGIC
     # ========================================================
 
-    st.markdown(
-        "### The modelling logic"
+    st.html(
+        """
+        <div class="section-title">
+            Past behaviour → prediction → future outcome
+        </div>
+        """
     )
 
-    st.markdown(
-        """
-        <div class="hero">
 
-            <div class="eyebrow">
-                Leakage-aware design
+    st.html(
+        f"""
+        <div class="card">
+
+            <p>
+
+                Historical transactions before
+                <strong>2011-10-01</strong>
+                were used to engineer customer behaviour.
+
+            </p>
+
+            <p>
+
+                Future transactions from
+                <strong>2011-10-01</strong>
+                onward were used to calculate future spending
+                and define the high-value customer target.
+
+            </p>
+
+            <p>
+
+                This time-aware structure was designed to reduce
+                target leakage by ensuring that future information
+                was not used to construct historical behavioural
+                features.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # MODEL PERFORMANCE
+    # ========================================================
+
+    st.html(
+        """
+        <div class="section-title">
+            Model Performance
+        </div>
+        """
+    )
+
+
+    p1, p2, p3, p4 = st.columns(4)
+
+
+    performance_cards = [
+
+        (
+            p1,
+            "ACCURACY",
+            f"{SMOTE_METRICS['Accuracy']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            p2,
+            "PRECISION",
+            f"{SMOTE_METRICS['Precision']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            p3,
+            "RECALL",
+            f"{SMOTE_METRICS['Recall']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            p4,
+            "F1 SCORE",
+            f"{SMOTE_METRICS['F1 Score']:.2%}",
+            "Best selected model"
+        )
+    ]
+
+
+    for col, label, value, delta in performance_cards:
+
+        with col:
+
+            st.html(
+                f"""
+                <div class="metric-card">
+
+                    <div class="metric-label">
+                        {label}
+                    </div>
+
+                    <div class="metric-value">
+                        {value}
+                    </div>
+
+                    <div class="metric-delta">
+                        {delta}
+                    </div>
+
+                </div>
+                """
+            )
+
+
+# ============================================================
+# PAGE 2 — PREDICTION
+# ============================================================
+
+elif page == "🔮 Prediction":
+
+
+    st.html(
+        """
+        <div class="section-title">
+            🔮 Customer Value Prediction
+        </div>
+
+        <div class="section-description">
+            Enter a customer's historical behavioural profile
+            to estimate the probability of belonging to the
+            high-value segment.
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # MODEL CHECK
+    # ========================================================
+
+    if model is None:
+
+        st.error(
+            "The customer-value model could not be loaded."
+        )
+
+        if model_error:
+
+            st.code(
+                model_error
+            )
+
+        st.stop()
+
+
+    # ========================================================
+    # MODEL CARD
+    # ========================================================
+
+    st.html(
+        f"""
+        <div class="card">
+
+            <h3>Active Prediction Model</h3>
+
+            <p>
+
+                <strong>Logistic Regression + SMOTE</strong>
+
+                <br>
+
+                The deployed pipeline contains the fitted
+                preprocessing and trained Logistic Regression
+                model.
+
+            </p>
+
+            <span class="rfm-badge">
+                StandardScaler
+            </span>
+
+            <span class="rfm-badge">
+                Logistic Regression
+            </span>
+
+            <span class="rfm-badge">
+                SMOTE
+            </span>
+
+            <span class="rfm-badge">
+                Time-aware
+            </span>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # INPUT FORM
+    # ========================================================
+
+    with st.form(
+        "customer_prediction_form"
+    ):
+
+        st.markdown(
+            "### Customer Behavioural Profile"
+        )
+
+
+        c1, c2, c3 = st.columns(3)
+
+
+        # ----------------------------------------------------
+        # COLUMN 1
+        # ----------------------------------------------------
+
+        with c1:
+
+            recency = st.number_input(
+
+                "Recency (days)",
+
+                min_value=0.0,
+
+                max_value=5000.0,
+
+                value=30.0,
+
+                step=1.0,
+
+                help=(
+                    "Number of days since the customer's "
+                    "most recent purchase."
+                )
+            )
+
+
+            frequency = st.number_input(
+
+                "Frequency (orders)",
+
+                min_value=1.0,
+
+                max_value=5000.0,
+
+                value=3.0,
+
+                step=1.0,
+
+                help=(
+                    "Number of customer transactions/orders."
+                )
+            )
+
+
+            average_order_value = st.number_input(
+
+                "Average Order Value",
+
+                min_value=0.0,
+
+                max_value=100000.0,
+
+                value=150.0,
+
+                step=10.0,
+
+                help=(
+                    "Average monetary value of each order."
+                )
+            )
+
+
+        # ----------------------------------------------------
+        # COLUMN 2
+        # ----------------------------------------------------
+
+        with c2:
+
+            average_quantity = st.number_input(
+
+                "Average Quantity",
+
+                min_value=0.0,
+
+                max_value=10000.0,
+
+                value=10.0,
+
+                step=1.0,
+
+                help=(
+                    "Average number of items per transaction."
+                )
+            )
+
+
+            total_items = st.number_input(
+
+                "Total Items",
+
+                min_value=0.0,
+
+                max_value=100000.0,
+
+                value=30.0,
+
+                step=1.0,
+
+                help=(
+                    "Total number of items purchased."
+                )
+            )
+
+
+            unique_products = st.number_input(
+
+                "Unique Products",
+
+                min_value=0.0,
+
+                max_value=10000.0,
+
+                value=15.0,
+
+                step=1.0,
+
+                help=(
+                    "Number of distinct products purchased."
+                )
+            )
+
+
+        # ----------------------------------------------------
+        # COLUMN 3
+        # ----------------------------------------------------
+
+        with c3:
+
+            number_of_transactions = st.number_input(
+
+                "Number of Transactions",
+
+                min_value=1.0,
+
+                max_value=5000.0,
+
+                value=5.0,
+
+                step=1.0,
+
+                help=(
+                    "Total number of transactions."
+                )
+            )
+
+
+            st.markdown(
+                "#### Behavioural interpretation"
+            )
+
+
+            st.caption(
+                "Lower recency generally means more recent "
+                "activity. Higher frequency, order value, "
+                "product diversity and transaction volume "
+                "may indicate stronger historical customer "
+                "engagement."
+            )
+
+
+        submitted = st.form_submit_button(
+
+            "🔮 RUN CUSTOMER VALUE PREDICTION",
+
+            use_container_width=True
+
+        )
+
+
+    # ========================================================
+    # PREDICT
+    # ========================================================
+
+    if submitted:
+
+
+        input_data = pd.DataFrame(
+
+            [[
+
+                recency,
+
+                frequency,
+
+                average_order_value,
+
+                average_quantity,
+
+                total_items,
+
+                unique_products,
+
+                number_of_transactions
+
+            ]],
+
+            columns=EXPECTED_FEATURES
+
+        )
+
+
+        try:
+
+
+            # ------------------------------------------------
+            # PREDICTION
+            # ------------------------------------------------
+
+            prediction = int(
+
+                model.predict(
+                    input_data
+                )[0]
+
+            )
+
+
+            # ------------------------------------------------
+            # PROBABILITY
+            # ------------------------------------------------
+
+            if hasattr(
+                model,
+                "predict_proba"
+            ):
+
+                probability = float(
+
+                    model.predict_proba(
+                        input_data
+                    )[0, 1]
+
+                )
+
+            else:
+
+                probability = float(
+                    prediction
+                )
+
+
+            # ------------------------------------------------
+            # STORE RESULT
+            # ------------------------------------------------
+
+            st.session_state.prediction_result = {
+
+                "prediction": prediction,
+
+                "probability": probability,
+
+                "input_data": input_data
+
+            }
+
+
+        except Exception as error:
+
+            st.session_state.prediction_result = None
+
+            st.error(
+                "Prediction failed."
+            )
+
+            st.exception(
+                error
+            )
+
+
+    # ========================================================
+    # DISPLAY RESULT
+    # ========================================================
+
+    result = (
+        st.session_state.prediction_result
+    )
+
+
+    if result is not None:
+
+
+        prediction = result[
+            "prediction"
+        ]
+
+        probability = result[
+            "probability"
+        ]
+
+        input_data = result[
+            "input_data"
+        ]
+
+
+        st.divider()
+
+
+        st.html(
+            """
+            <div class="section-title">
+                Prediction Result
             </div>
+            """
+        )
+
+
+        probability_percent = (
+            probability * 100
+        )
+
+
+        # ====================================================
+        # RESULT
+        # ====================================================
+
+        if prediction == 1:
+
+            st.html(
+                f"""
+                <div class="result-high">
+
+                    <div class="result-title">
+                        ✓ High-value customer signal detected
+                    </div>
+
+                    <div class="result-text">
+
+                        The customer's behavioural profile
+                        is classified by the model as belonging
+                        to the high-value segment.
+
+                    </div>
+
+                    <div class="result-probability">
+                        {probability_percent:.1f}%
+                    </div>
+
+                    <div class="result-text">
+
+                        Estimated probability of the
+                        high-value class.
+
+                    </div>
+
+                </div>
+                """
+            )
+
+
+        else:
+
+            st.html(
+                f"""
+                <div class="result-low">
+
+                    <div class="result-title">
+                        Lower high-value probability
+                    </div>
+
+                    <div class="result-text">
+
+                        The customer's current behavioural
+                        profile is less aligned with the
+                        high-value segment according to
+                        the trained model.
+
+                    </div>
+
+                    <div class="result-probability">
+                        {probability_percent:.1f}%
+                    </div>
+
+                    <div class="result-text">
+
+                        Estimated probability of the
+                        high-value class.
+
+                    </div>
+
+                </div>
+                """
+            )
+
+
+        # ====================================================
+        # PROBABILITY PROGRESS
+        # ====================================================
+
+        st.markdown(
+            "### High-value probability"
+        )
+
+
+        st.progress(
+            min(
+                max(
+                    probability,
+                    0.0
+                ),
+                1.0
+            )
+        )
+
+
+        # ====================================================
+        # RESULT METRICS
+        # ====================================================
+
+        q1, q2, q3 = st.columns(3)
+
+
+        with q1:
+
+            st.metric(
+                "Probability",
+                f"{probability_percent:.1f}%"
+            )
+
+
+        with q2:
+
+            st.metric(
+                "Classification",
+                (
+                    "High Value"
+                    if prediction == 1
+                    else "Lower Value"
+                )
+            )
+
+
+        with q3:
+
+            st.metric(
+                "Model",
+                "Logistic + SMOTE"
+            )
+
+
+        # ====================================================
+        # BEHAVIOURAL SNAPSHOT
+        # ====================================================
+
+        st.markdown(
+            "### Behavioural Snapshot"
+        )
+
+
+        profile = pd.DataFrame(
+
+            {
+
+                "Feature":
+                    EXPECTED_FEATURES,
+
+                "Customer Value":
+                    input_data.iloc[0].values
+
+            }
+
+        )
+
+
+        st.dataframe(
+
+            profile,
+
+            use_container_width=True,
+
+            hide_index=True
+
+        )
+
+
+        st.caption(
+
+            "The probability is a model-based estimate and "
+            "should not be interpreted as a guarantee of "
+            "future customer spending."
+
+        )
+
+
+# ============================================================
+# PAGE 3 — CUSTOMER PROFILE
+# ============================================================
+
+elif page == "👤 Customer Profile":
+
+
+    st.html(
+        """
+        <div class="section-title">
+            👤 Customer Profile Simulator
+        </div>
+
+        <div class="section-description">
+            Explore how changes in behavioural characteristics
+            change the customer profile before running a formal
+            prediction.
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # DEFAULT PROFILE
+    # ========================================================
+
+    default_profile = {
+
+        "Recency": 30.0,
+
+        "Frequency": 3.0,
+
+        "Average_Order_Value": 150.0,
+
+        "Average_Quantity": 10.0,
+
+        "Total_Items": 30.0,
+
+        "Unique_Products": 15.0,
+
+        "Number_of_Transactions": 5.0
+
+    }
+
+
+    # ========================================================
+    # SLIDERS
+    # ========================================================
+
+    values = {}
+
+
+    s1, s2 = st.columns(2)
+
+
+    for index, feature in enumerate(
+        EXPECTED_FEATURES
+    ):
+
+
+        container = (
+            s1
+            if index % 2 == 0
+            else s2
+        )
+
+
+        with container:
+
+
+            base_value = (
+                default_profile[
+                    feature
+                ]
+            )
+
+
+            maximum = max(
+                base_value * 10,
+                100
+            )
+
+
+            values[feature] = st.slider(
+
+                feature.replace(
+                    "_",
+                    " "
+                ),
+
+                min_value=0.0,
+
+                max_value=float(
+                    maximum
+                ),
+
+                value=float(
+                    base_value
+                )
+
+            )
+
+
+    # ========================================================
+    # PROFILE DATAFRAME
+    # ========================================================
+
+    profile = pd.DataFrame(
+        [values]
+    )
+
+
+    st.markdown(
+        "### Current Behavioural Profile"
+    )
+
+
+    st.dataframe(
+
+        profile,
+
+        use_container_width=True,
+
+        hide_index=True
+
+    )
+
+
+    # ========================================================
+    # PROFILE SUMMARY
+    # ========================================================
+
+    st.html(
+        f"""
+        <div class="card">
+
+            <h3>Behavioural Summary</h3>
+
+            <div class="feature-row">
+
+                <span class="feature-name">
+                    Recency
+                </span>
+
+                <span class="feature-value">
+                    {values["Recency"]:.1f}
+                </span>
+
+            </div>
+
+            <div class="feature-row">
+
+                <span class="feature-name">
+                    Frequency
+                </span>
+
+                <span class="feature-value">
+                    {values["Frequency"]:.1f}
+                </span>
+
+            </div>
+
+            <div class="feature-row">
+
+                <span class="feature-name">
+                    Average Order Value
+                </span>
+
+                <span class="feature-value">
+                    {values["Average_Order_Value"]:.1f}
+                </span>
+
+            </div>
+
+            <div class="feature-row">
+
+                <span class="feature-name">
+                    Unique Products
+                </span>
+
+                <span class="feature-value">
+                    {values["Unique_Products"]:.1f}
+                </span>
+
+            </div>
+
+        </div>
+        """
+    )
+
+
+    st.info(
+
+        "This simulator is intended for behavioural "
+        "exploration. The Prediction page uses the saved "
+        "machine-learning pipeline."
+
+    )
+
+
+# ============================================================
+# PAGE 4 — MODEL CONTEXT
+# ============================================================
+
+elif page == "🧠 Model Context":
+
+
+    st.html(
+        """
+        <div class="section-title">
+            🧠 Model Context
+        </div>
+
+        <div class="section-description">
+            Understand the dataset construction, behavioural
+            features and modelling logic behind the deployed
+            customer-value prediction system.
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # DATASET METRICS
+    # ========================================================
+
+    m1, m2, m3, m4 = st.columns(4)
+
+
+    context_metrics = [
+
+        (
+            m1,
+            "RAW TRANSACTIONS",
+            f"{RAW_TRANSACTIONS:,}",
+            "Online retail dataset"
+        ),
+
+        (
+            m2,
+            "CUSTOMER RECORDS",
+            f"{CUSTOMER_RECORDS:,}",
+            "Customer-level aggregation"
+        ),
+
+        (
+            m3,
+            "FEATURES",
+            str(BEHAVIOURAL_FEATURES),
+            "Behavioural variables"
+        ),
+
+        (
+            m4,
+            "FUTURE-SPEND MEDIAN",
+            f"£{FUTURE_SPEND_MEDIAN:,.2f}",
+            "High-value threshold"
+        )
+
+    ]
+
+
+    for col, label, value, delta in context_metrics:
+
+        with col:
+
+            st.html(
+                f"""
+                <div class="metric-card">
+
+                    <div class="metric-label">
+                        {label}
+                    </div>
+
+                    <div class="metric-value">
+                        {value}
+                    </div>
+
+                    <div class="metric-delta">
+                        {delta}
+                    </div>
+
+                </div>
+                """
+            )
+
+
+    # ========================================================
+    # LEAKAGE-AWARE DESIGN
+    # ========================================================
+
+    st.html(
+        """
+        <div class="section-title">
+            The Modelling Logic
+        </div>
+        """
+    )
+
+
+    st.html(
+        """
+        <div class="card">
 
             <h3>
                 Past behaviour → prediction → future outcome
             </h3>
 
-            <p class="section-note">
+            <p>
+
                 Historical transactions before
-                <b>2011-10-01</b>
-                were used to engineer customer behaviour.
-                Future transactions from
-                <b>2011-10-01</b>
-                onward were used to define future spending
-                and the high-value target.
+                <strong>2011-10-01</strong>
+                were used to engineer customer-level
+                behavioural features.
+
             </p>
 
-            <p class="section-note">
-                The modelling workflow compared Logistic Regression,
-                Decision Tree, Random Forest and XGBoost, with SMOTE
-                applied to the training data.
+            <p>
+
+                Future transactions from
+                <strong>2011-10-01</strong>
+                onward were used to calculate future spending
+                and define the high-value target.
+
+            </p>
+
+            <p>
+
+                The purpose of this temporal separation was to
+                avoid allowing future purchasing information to
+                leak into the behavioural features used for
+                prediction.
+
             </p>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
     # ========================================================
-    # EVALUATION
+    # SEVEN FEATURES
     # ========================================================
 
     st.markdown(
-        "### Key evaluation results"
+        "### Seven Behavioural Features"
     )
 
-    result_df = pd.DataFrame(
+
+    feature_descriptions = {
+
+        "Recency":
+            "Days since the customer's most recent purchase.",
+
+        "Frequency":
+            "Number of customer orders/purchases.",
+
+        "Average_Order_Value":
+            "Average monetary value per order.",
+
+        "Average_Quantity":
+            "Average quantity of items per transaction.",
+
+        "Total_Items":
+            "Total number of items purchased.",
+
+        "Unique_Products":
+            "Number of distinct products purchased.",
+
+        "Number_of_Transactions":
+            "Total transaction count used in the behavioural profile."
+    }
+
+
+    feature_table = pd.DataFrame(
+
         {
+
+            "Feature":
+                list(
+                    feature_descriptions.keys()
+                ),
+
+            "Description":
+                list(
+                    feature_descriptions.values()
+                )
+
+        }
+
+    )
+
+
+    st.dataframe(
+
+        feature_table,
+
+        use_container_width=True,
+
+        hide_index=True
+
+    )
+
+
+    # ========================================================
+    # MODELS COMPARED
+    # ========================================================
+
+    st.markdown(
+        "### Models Compared"
+    )
+
+
+    models_compared = pd.DataFrame(
+
+        {
+
+            "Model": [
+
+                "Logistic Regression",
+
+                "Decision Tree",
+
+                "Random Forest",
+
+                "XGBoost"
+
+            ],
+
+            "SMOTE": [
+
+                "Applied",
+
+                "Applied",
+
+                "Applied",
+
+                "Applied"
+
+            ],
+
+            "Purpose": [
+
+                "Linear baseline",
+
+                "Non-linear tree model",
+
+                "Ensemble model",
+
+                "Gradient boosting model"
+
+            ]
+
+        }
+
+    )
+
+
+    st.dataframe(
+
+        models_compared,
+
+        use_container_width=True,
+
+        hide_index=True
+
+    )
+
+
+    # ========================================================
+    # DEPLOYMENT PIPELINE
+    # ========================================================
+
+    st.html(
+        """
+        <div class="section-title">
+            Deployment Pipeline
+        </div>
+
+        <div class="card">
+
+            <h3>
+                Single sklearn Pipeline
+            </h3>
+
+            <p>
+
+                Customer Input
+
+                →
+                Seven Behavioural Features
+
+                →
+                StandardScaler
+
+                →
+                Logistic Regression
+
+                →
+                High-value Probability
+
+            </p>
+
+            <p>
+
+                The deployed application uses the saved
+                <strong>customer_value_pipeline.pkl</strong>
+                model pipeline so that preprocessing and
+                prediction remain consistent with the trained
+                deployment model.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+# ============================================================
+# PAGE 5 — EVALUATION
+# ============================================================
+
+elif page == "⚖️ Evaluation":
+
+
+    st.html(
+        """
+        <div class="section-title">
+            ⚖️ Model Evaluation
+        </div>
+
+        <div class="section-description">
+            Comparison of the baseline Logistic Regression model
+            with the Logistic Regression model trained with SMOTE.
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # METRIC CARDS
+    # ========================================================
+
+    e1, e2, e3, e4 = st.columns(4)
+
+
+    evaluation_cards = [
+
+        (
+            e1,
+            "ACCURACY",
+            f"{SMOTE_METRICS['Accuracy']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            e2,
+            "PRECISION",
+            f"{SMOTE_METRICS['Precision']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            e3,
+            "RECALL",
+            f"{SMOTE_METRICS['Recall']:.2%}",
+            "Logistic + SMOTE"
+        ),
+
+        (
+            e4,
+            "F1 SCORE",
+            f"{SMOTE_METRICS['F1 Score']:.2%}",
+            "Best by F1"
+        )
+
+    ]
+
+
+    for col, label, value, delta in evaluation_cards:
+
+        with col:
+
+            st.html(
+                f"""
+                <div class="metric-card">
+
+                    <div class="metric-label">
+                        {label}
+                    </div>
+
+                    <div class="metric-value">
+                        {value}
+                    </div>
+
+                    <div class="metric-delta">
+                        {delta}
+                    </div>
+
+                </div>
+                """
+            )
+
+
+    # ========================================================
+    # COMPARISON TABLE
+    # ========================================================
+
+    st.markdown(
+        "### Baseline vs Logistic + SMOTE"
+    )
+
+
+    comparison = pd.DataFrame(
+
+        {
+
             "Metric": [
+
                 "Accuracy",
+
                 "Precision",
+
                 "Recall",
-                "F1 Score",
+
+                "F1 Score"
+
             ],
 
             "Baseline Logistic": [
-                0.7873,
-                0.7297,
-                0.3951,
-                0.5127,
+
+                BASELINE_METRICS[
+                    "Accuracy"
+                ],
+
+                BASELINE_METRICS[
+                    "Precision"
+                ],
+
+                BASELINE_METRICS[
+                    "Recall"
+                ],
+
+                BASELINE_METRICS[
+                    "F1 Score"
+                ]
+
             ],
 
             "Logistic + SMOTE": [
-                0.7652,
-                0.5792,
-                0.6244,
-                0.6009,
-            ],
+
+                SMOTE_METRICS[
+                    "Accuracy"
+                ],
+
+                SMOTE_METRICS[
+                    "Precision"
+                ],
+
+                SMOTE_METRICS[
+                    "Recall"
+                ],
+
+                SMOTE_METRICS[
+                    "F1 Score"
+                ]
+
+            ]
+
         }
+
     )
 
 
-    # ========================================================
-    # BAR CHART
-    # ========================================================
+    st.dataframe(
 
-    fig = px.bar(
-        result_df,
-        x="Metric",
-        y=[
-            "Baseline Logistic",
-            "Logistic + SMOTE",
-        ],
+        comparison.style.format(
 
-        barmode="group",
+            {
 
-        range_y=[0, 1],
+                "Baseline Logistic":
+                    "{:.2%}",
 
-        labels={
-            "value": "Score",
-            "variable": "Model",
-        },
-    )
+                "Logistic + SMOTE":
+                    "{:.2%}"
 
-    fig.update_layout(
-        height=390,
+            }
 
-        paper_bgcolor="rgba(0,0,0,0)",
-
-        plot_bgcolor="rgba(255,255,255,.025)",
-
-        font=dict(
-            color="#e2e8f0"
         ),
 
-        legend_title_text="",
-
-        margin=dict(
-            l=20,
-            r=20,
-            t=30,
-            b=20,
-        ),
-    )
-
-    fig.update_yaxes(
-        tickformat=".0%",
-        gridcolor="rgba(255,255,255,.06)",
-    )
-
-    fig.update_xaxes(
-        gridcolor="rgba(255,255,255,.04)",
-    )
-
-    st.plotly_chart(
-        fig,
         use_container_width=True,
+
+        hide_index=True
+
     )
 
 
     # ========================================================
-    # MODELLING NOTE
+    # CHART
     # ========================================================
 
     st.markdown(
-        "### Important modelling note"
+        "### Metric Comparison"
     )
 
-    st.warning(
-        "The deployed application uses a single sklearn Pipeline "
-        "containing the fitted StandardScaler and the trained "
-        "Logistic Regression model. This prevents preprocessing "
-        "mismatch between the notebook and the web app."
+
+    chart_data = comparison.set_index(
+        "Metric"
+    )
+
+
+    st.bar_chart(
+        chart_data
+    )
+
+
+    # ========================================================
+    # INTERPRETATION
+    # ========================================================
+
+    st.html(
+        f"""
+        <div class="card">
+
+            <h3>
+                What changed after SMOTE?
+            </h3>
+
+            <p>
+
+                Accuracy changed from
+                <strong>
+                    {BASELINE_METRICS["Accuracy"]:.2%}
+                </strong>
+                to
+                <strong>
+                    {SMOTE_METRICS["Accuracy"]:.2%}
+                </strong>.
+
+            </p>
+
+            <p>
+
+                Recall improved from
+                <strong>
+                    {BASELINE_METRICS["Recall"]:.2%}
+                </strong>
+                to
+                <strong>
+                    {SMOTE_METRICS["Recall"]:.2%}
+                </strong>.
+
+            </p>
+
+            <p>
+
+                F1 Score improved from
+                <strong>
+                    {BASELINE_METRICS["F1 Score"]:.2%}
+                </strong>
+                to
+                <strong>
+                    {SMOTE_METRICS["F1 Score"]:.2%}
+                </strong>.
+
+            </p>
+
+            <p>
+
+                The SMOTE model therefore provided a stronger
+                balance between precision and recall according
+                to the F1 metric used for model selection.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+# ============================================================
+# PAGE 6 — METHODOLOGY
+# ============================================================
+
+elif page == "📘 Methodology":
+
+
+    st.html(
+        """
+        <div class="section-title">
+            📘 Methodology
+        </div>
+
+        <div class="section-description">
+            A concise technical overview of how the customer-value
+            prediction project was constructed.
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 1
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                01 — Transaction Data
+            </h3>
+
+            <p>
+
+                The project began with
+                <strong>541,909 retail transactions</strong>.
+                Transaction-level information was transformed
+                into customer-level behavioural records.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 2
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                02 — Temporal Feature Engineering
+            </h3>
+
+            <p>
+
+                Historical transactions before
+                <strong>2011-10-01</strong>
+                were used to construct behavioural features.
+
+                This creates a realistic modelling structure in
+                which past behaviour is used to predict future
+                customer value.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 3
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                03 — Future Value Target
+            </h3>
+
+            <p>
+
+                Future spending from
+                <strong>2011-10-01</strong>
+                onward was used to define the future customer
+                value outcome.
+
+                The reported future-spend median was
+                <strong>£439.61</strong>.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 4
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                04 — Model Development
+            </h3>
+
+            <p>
+
+                Logistic Regression, Decision Tree,
+                Random Forest and XGBoost were compared.
+
+                SMOTE was applied to the training data to address
+                class imbalance.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 5
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                05 — Model Selection
+            </h3>
+
+            <p>
+
+                Logistic Regression + SMOTE was selected based
+                on the F1 Score among the evaluated modelling
+                approaches.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # STEP 6
+    # ========================================================
+
+    st.html(
+        """
+        <div class="card">
+
+            <h3>
+                06 — Deployment
+            </h3>
+
+            <p>
+
+                The fitted preprocessing and Logistic Regression
+                model were saved as a single
+                <strong>customer_value_pipeline.pkl</strong>
+                deployment pipeline.
+
+            </p>
+
+            <p>
+
+                This allows the Streamlit application to receive
+                raw behavioural inputs and pass them through the
+                same preprocessing and prediction workflow.
+
+            </p>
+
+        </div>
+        """
+    )
+
+
+    # ========================================================
+    # LIMITATIONS
+    # ========================================================
+
+    st.html(
+        """
+        <div class="notice">
+
+            <div class="notice-title">
+                Important modelling limitations
+            </div>
+
+            Customer-value predictions are probabilistic estimates.
+            Model performance depends on the underlying dataset,
+            feature engineering, target definition and evaluation
+            design.
+
+            <br><br>
+
+            A prediction should therefore be interpreted as a
+            decision-support signal rather than a guaranteed
+            statement about a customer's future behaviour.
+
+        </div>
+        """
     )
 
 
@@ -1285,20 +3020,33 @@ elif page == "Model Context":
 # FOOTER
 # ============================================================
 
-st.divider()
+st.html(
+    f"""
+    <div class="footer">
 
-st.markdown(
-    """
-    <div style="
-        text-align: center;
-        color: #667085;
-        font-size: 0.78rem;
-        padding: 10px 0 20px;
-    ">
+        <strong>
+            ◈ Customer Value Intelligence
+        </strong>
+
+        <br><br>
+
         Behavioral Customer Value Prediction
-        • RFM + behavioural analytics
-        • Built with Python & Streamlit
+
+        <br>
+
+        RFM + behavioural analytics
+
+        <br><br>
+
+        Built with Python & Streamlit
+
+        <br>
+
+        Built by
+        <strong>
+            Olalemi Olaoluwakintan Emmanuel
+        </strong>
+
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
