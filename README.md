@@ -12,6 +12,7 @@ An end-to-end machine learning pipeline that transforms raw retail transactions 
 [![XGBoost](https://img.shields.io/badge/XGBoost-Gradient%20Boosting-blueviolet)](https://xgboost.ai/)
 [![imbalanced--learn](https://img.shields.io/badge/imbalanced--learn-SMOTE-green)](https://imbalanced-learn.org/)
 [![Status](https://img.shields.io/badge/Status-Complete-success)]()
+
 [**Live Demo**](https://behavioral-customer-value-prediction-using-rfm-analytics-422e2.streamlit.app/)
 
 </div>
